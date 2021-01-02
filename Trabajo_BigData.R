@@ -6,7 +6,6 @@ install.packages("Rvest")
 install.packages("gdata")
 
 #librerias
-
 library("rvest")
 library("gdata")
 
@@ -154,23 +153,21 @@ write.csv(Info_bookdepository, "informacion_bookdepository.csv")
 info_linio <- data.frame()
 
 for(nro_pag in 1:17){
-  # Descargando la pagina
   
+  #Descargando la pagina
   URL <-paste("https://www.linio.cl/c/literatura-y-novelas/literatura-juvenil?qid=f83321c78c0344926435195bd01d0acf&oid=RO169BK0FZI35LACL&position=34&sku=RO169BK0FZI35LACL&page=", nro_pag, sep = "")
   
   linio <- read_html(URL)
   
-  
-  # Listado de productos
+  #Listado de productos
   listado_productos <- html_nodes(linio, css = "#catalogue-product-container")
   
   
   #listado productos individuales
   listado_individual <- html_nodes(listado_productos, css =".catalogue-product")
   
-  # Intentando sacar las cosas
-  
-  for (producto in listado_individual) {
+  #Intentando sacar las cosas
+  for(producto in listado_individual){
     print("------------------ ITEMS ------------------")
     
     # Titulos
@@ -238,7 +235,6 @@ for(nro_pag in 1:17){
       }
     }
     
-    
     #Editorial
     editorial <- F
     for(variable in Tabla){
@@ -252,7 +248,6 @@ for(nro_pag in 1:17){
         editorial <- T
       }
     }
-    
     
     #Cantidad de paginas
     cant_pag <- F
@@ -268,8 +263,7 @@ for(nro_pag in 1:17){
       if(texto_cant_pag=="Número de paginas"){
         cant_pag <- T
       }
-      
-    }
+      }
     
     #Tipo de pasta (FORMATO)
     formato <- F
@@ -284,19 +278,16 @@ for(nro_pag in 1:17){
       if(texto_formato=="Tipo de pasta"){
         formato <- T
       }
-      
-    }
+     }
     
     producto <- data.frame(Titulo = texto_titulos, Autor = texto_autor2, Editorial = texto_editorial2,
                            Precio = texto_precios, Valoracion = texto_estrellas,
                            Cant_coment = texto_cant_comentarios, Cant_pag = texto_cant_pag2, 
                            Formato= texto_formato2, URL = link_producto)
     
-    info_linio <- rbind(info_linio, producto) 
-    
+    info_linio <- rbind(info_linio, producto)
   }
-  
-}
+  }
 
 write.csv(info_linio, "informacion_linio.csv")
 
