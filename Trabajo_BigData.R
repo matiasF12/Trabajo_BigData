@@ -1,8 +1,9 @@
-######## TRABAJO WEB SCRAPPING #########
+#################################################################################
+############################# TRABAJO WEB SCRAPPING #############################
 
 #Instalar paquetes
-###  install.packages("Rvest")
-###  install.packages("gdata")
+install.packages("Rvest")
+install.packages("gdata")
 
 #librerias
 
@@ -304,7 +305,7 @@ write.csv(info_linio, "informacion_linio.csv")
 ##############################################################################################################
 #----------------------------------- CREAR GRAFICOS PARA BOOKDEPOSITORY --------------------------------------
 
-
+Info_bookdepository <- read.csv("informacion_bookdepository.csv")
 
 ##############################################################################################################
 #--------------------------------------- CREAR GRAFICOS PARA LINIO -------------------------------------------
