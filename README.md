@@ -1,2 +1,2 @@
 # Trabajo_BigData
-Web scrapping de libros juveniles de bookdeposirory y linio.
+Web scrapping de libros juveniles de bookdepository y linio.
