@@ -156,10 +156,6 @@ for(nropag in 1:333){
 
 
 
-
-
-
-
 #La informacion almacenada se guarda en un csv.
 write.csv(Info_bookdepository, "informacion_bookdepository.csv")
 
@@ -347,31 +343,41 @@ Info_bookdepository <- read.csv("informacion_bookdepository.csv")
 #comentarios para que sea mas amigable el numero
 Info_bookdepository <- mutate(Info_bookdepository, Sitio_web= "Bookdepository")
 Info_bookdepository <- mutate(Info_bookdepository, mill_Comentarios=Cant_coment/1000000)
+Info_bookdepository$Formato <- gsub("Paperback", "Tapa Blanda", Info_bookdepository$Formato)
+Info_bookdepository$Formato <- gsub("Hardback", "Tapa Dura", Info_bookdepository$Formato)
 
 #se eliminan aquellos libros extraidos los cuales no tienen precio (porque no estan disponibles)
 #y la editorial se pone en mayuscula
 Info_bookdepository2 <- Info_bookdepository%>%filter(Precio!='is.na')
 Info_bookdepository2$Editorial <- str_to_upper(Info_bookdepository2$Editorial, locale = "en")
 
+
+
 ########## GRAFICO 1 ##########
+
+#Para este grafico se quiere ver cuales son los libros mas populares, considerando
+#la cantidad de comentarios que estos tengan, dado que existen libros que tienen valoración
+#5 estrellas pero solo tienen un comentario.
 
 #10 libros mas populares (valoracion)
 top_bookde <- Info_bookdepository2%>% arrange(desc(Cant_coment,Valoracion))%>%
   filter(row_number()<=10)
 
 #grafico valoracion de libros
-ggplot(top_bookde, aes(x=Titulo, y=Valoracion)) + 
-  geom_point(aes(size=mill_Comentarios, color=Valoracion))+ 
-  geom_segment(aes(x=Titulo, xend=Titulo, y=4, yend=Valoracion), color="skyblue") + 
-  coord_flip()+ ggtitle("Libros más valorados")+ theme_classic() 
-
-
 ggplot(top_bookde, aes(x=Titulo, y=mill_Comentarios)) + 
   geom_point(aes(size=Valoracion, color=mill_Comentarios))+ 
   geom_segment(aes(x=Titulo, xend=Titulo, y=0, yend=mill_Comentarios), color="skyblue") + 
   coord_flip()+ ggtitle("Libros más valorados")+ theme_classic()
 
+#En este grafico se puede ver que los libros mas y mejor valorados son de la saga de 
+#"Harry Potter" alcanzando una valoracion de 4.5 puntos y superando los 7 millones de comentarios
+
+
+
 ########## GRAFICO 2 ##########
+
+#Se ve la distribucion de los precios de bookdepository. En primer lugar están todos (contiene
+#outliers) y el segundo tiene un acercamiento, por ende no se ven todos los outliers
 
 #grafico con los precios (con outliers)
 ggplot(Info_bookdepository2, aes(x=Sitio_web, y=Precio))+ 
@@ -387,15 +393,25 @@ ggplot(Info_bookdepository2, aes(x=Sitio_web, y=Precio))+
 
 summary(Info_bookdepository2$Precio)
 
+#Para este caso, se puede notar que la mediana del precio de los libros en esta plataforma se
+#encuentra en los 15.300 pesos aproximadamente. Tambien se ve una gran cantidad de outliers,
+#que estan por sobre los 30000 pesos
+
 
 
 ########## GRAFICO 3 ##########
 
-#grafico para autores mas valorados
-Autores_bookde <-select(Info_bookdepository2,Autor,Valoracion, Cant_coment)%>%filter(Autor!="") 
-Autores_bookde <- Autores_bookde%>%group_by(Autor)%>% 
-  summarise(promedio=mean(Valoracion), n=n(), sd(Valoracion))%>%  arrange(desc(promedio,n))
-Autores_bookde <- Autores_bookde%>%filter(promedio>=3.5)%>%filter(n>=10)
+#Este grafico muestra los autores más valorados, obtenido mediante un promedio de las valoraciones
+#de los libros disponibles en este sitio web y teniendo en consideracion la cantidad de libros
+#disponibles, dado que como paso anteriormente, algunos autores tienen solo 1 libro que fue bien
+#valorado, y esto genera problemas si se compara con otros autores que tienen mayor cantidad de 
+#publicaciones.
+
+#seleccion de variables, filtros y datos relevantes
+Autores_bookde <-select(Info_bookdepository2,Autor,Valoracion, Cant_coment)%>%
+  filter(Autor!="")%>%group_by(Autor)%>%
+  summarise(promedio=mean(Valoracion), n=n(), sd(Valoracion))%>%  arrange(desc(promedio,n))%>%
+  filter(promedio>=3.5)%>%filter(n>=10)
   
 #grafico para autores
 ggplot(Autores_bookde, aes(x=promedio, y=n))+ geom_point(size=3, color="#69b3a2")+
@@ -404,10 +420,20 @@ ggplot(Autores_bookde, aes(x=promedio, y=n))+ geom_point(size=3, color="#69b3a2"
   ggtitle("Autores más valorados y con mayor cantidad de libros")+ theme_classic()
 
 
+#El autor con mayor cantidad de publicaciones es "Mary Pope Osborne", sin embargo, su 
+#valoracion es inferior a 3.8. En el caso contrario autores con poca cantidad de libros
+# como "Dav Pilkey" tiene una calificacion superior a 4.2. Dicho lo anterior, los que
+#tienen unos 15 libros y nota superior a 4 son los mas y mejores valorados dado el 
+#equilibrio que hay
+
+
+
 ########## GRAFICO 4 ##########
+#Para este caso, se busca identificar las editoriales con mayor cantidad de publicaciones en 
+#esta plataforma. 
 
-#Editoriales con mayor cantidad de libros
-
+#Editoriales con mayor cantidad de libros (para esto se cuentan los libros y luego se muestran
+#solo las 15 editoriales con mayor cantidad de publicaciones)
 editorial_bookde <- Info_bookdepository2%>%group_by(Editorial)%>%
   summarise(n=n())%>%arrange(desc(n))%>%filter(row_number()<=15)
 
@@ -418,21 +444,24 @@ ggplot(editorial_bookde,aes(x=Editorial, y=n)) +
   ylab("Publicaciones")
 
 
-
-
-
-
+#En este grafico se puede ver las editoriales o publicaciones "independientes" son las que
+#tienen una mayor cantidad de libros en la plataforma.
 
 ##############################################################################################################
 #--------------------------------------- CREAR GRAFICOS PARA LINIO -------------------------------------------
 
-info_linio <- read.csv("informacion_linio.csv")
-info_linio <- mutate(info_linio, Sitio_web = "Linio")
-info_linio<- mutate(info_linio, mill_Comentarios=Cant_coment/1000000)
+#Carga de base de datos 
+linio <- read.csv("informacion_linio.csv")
+
+#Se agrega la variable sitio web para despues poder combinar ambas bases de datos y poder
+#obtener graficos que requieran identificar los libros de linio y bookdepository. Tambien la 
+#variable mill_coment que es la cantidad de comentarios dividio en 1 millon con el fin de tener
+#una mejor visualizacion en los graficos.
+linio <- mutate(linio, Sitio_web = "Linio")
+linio<- mutate(linio, mill_Comentarios=Cant_coment/1000000)
 
 #Limpieza para variable autor
-{linio <- info_linio
-linio$Autor <- str_trim(linio$Autor, side = "both")
+{linio$Autor <- str_trim(linio$Autor, side = "both")
 linio$Autor <- str_to_upper(linio$Autor, locale = "es")
 linio$Autor <- chartr("ÁÉÍÓÚ", "AEIOU", linio$Autor)
 linio$Autor <- chartr("ÀÈÌÒÙ", "AEIOU", linio$Autor)
@@ -459,7 +488,7 @@ select(linio, Autor)%>%count(Autor)%>%arrange(desc(n))
 #Fue necesario limpiar la variable antes de realizar el grafico, debido a que la
 #misma editorial estaba escrita de diferentes formas.
 
-linio$Editorial <- str_to_upper(linio$Editorial, locale = "es")
+{linio$Editorial <- str_to_upper(linio$Editorial, locale = "es")
 linio$Editorial <- chartr("ÁÉÍÓÚ", "AEIOU", linio$Editorial)
 linio$Editorial <- gsub("EDITORIAL", "", linio$Editorial)
 linio$Editorial <- gsub("EDITORAS", "", linio$Editorial)
@@ -499,27 +528,35 @@ linio$Editorial <- gsub("INFANTIL", "", linio$Editorial)
 linio$Editorial <- str_trim(linio$Editorial, side = "both")
 
 select(linio, Editorial) %>% count(Editorial)%>%arrange(desc(n))
+}
+
+
 
 ########## GRAFICO 1 ##########
 
-#10 libros mas populares (valoracion)
+#Para este grafico se quiere ver cuales son los libros más populares, considerando
+#la cantidad de comentarios que estos tengan, dado que existen libros que tienen valoración
+#5 estrellas pero solo tienen un comentario.
 
+#10 libros mas populares (valoracion)
 top_linio <- linio %>%select(Titulo, Valoracion, Cant_coment)%>%
   arrange(desc(Cant_coment, Valoracion))%>% filter(row_number()<= 10)
 
-ggplot(top_linio, aes(x=Titulo, y=Valoracion))+
-  geom_point(aes(size=Cant_coment), color="darkorange1")+
-  geom_segment(aes(x=Titulo, xend=Titulo, y=4, yend=Valoracion), color="orange1")+
-  coord_flip()+ ggtitle("Libros más y mejor valorados")+ theme_classic()
-  
 ggplot(top_linio, aes(x=Titulo, y=Cant_coment))+
   geom_point(aes(size=Valoracion), color="darkorange1")+
   geom_segment(aes(x=Titulo, xend=Titulo, y=0, yend=Cant_coment), color="orange1")+
   coord_flip()+ ggtitle("Libros más y mejor valorados")+ theme_classic()
 
-
+#En este grafico se puede evidenciar que el libro con mas comentarios y con mejor 
+#valoracion es el de "Sol de media noche", seguido por un libro de la saga de "Harry Potter" 
+#y otro de "Juego de Tronos". Ademas, es posible notar que todos estos libros alcanzan la 
+#valorizacion maxima.
 
 ########## GRAFICO 2 ##########
+
+#Se ve la distribucion de los precios de linio. En primer lugar estan todos 
+#(contiene outliers) y el segundo tiene un acercamiento, por ende no se ven todos los 
+#outliers
 
 #grafico con los precios (con outliers)
 ggplot(linio, aes(x=Sitio_web, y=Precio))+
@@ -527,26 +564,30 @@ ggplot(linio, aes(x=Sitio_web, y=Precio))+
   stat_summary(fun= mean, geom = "point", shape=20, size=4, color="darkorange1", 
                fill="darkorange1")+  theme_classic()
 
-
-
 #grafico con acercamiento a boxplot
 ggplot(linio, aes(x=Sitio_web, y=Precio))+
   geom_boxplot(fill="darkorange1", alpha=0.6) +
   stat_summary(fun= mean, geom = "point", shape=20, size=4, color="darkorange1", 
                fill="darkorange1")+ theme_classic() + scale_y_continuous(limits=c(5000, 35000))
 
-
-
 summary(linio$Precio)
 
+#En este grafico se puede notar la distribucion de los precios de linio, el cual 
+#tiene una media de $14.000 pesos. Tambien se puede ver una cantidad  importante de outliers.
 
 
 ########## GRAFICO 3 ##########
 
-Autores_linio <-select(linio, Autor, Valoracion, Cant_coment) %>% filter(Autor!="is.na")
-Autores_linio <- Autores_linio %>% group_by(Autor) %>% summarise(promedio=mean(Valoracion), n=n(), sd(Valoracion)) %>%
-  arrange(desc(n))
-Autores_linio <- Autores_linio %>% filter(promedio >= 2) %>% filter(n > 3)
+#Este grafico muestra los autores mas valorados, obtenido mediante un promedio de las valoraciones
+#de los libros disponibles en este sitio web y teniendo en consideracion la cantidad de libros
+#disponibles, dado que como paso anteriormente, algunos autores tienen solo 1 libro que fue bien
+#valorado, y esto genera problemas si se compara con otros autores que tienen mayor cantidad de 
+#publicaciones.
+
+
+Autores_linio <-select(linio, Autor, Valoracion, Cant_coment) %>% filter(Autor!="is.na")%>%
+  group_by(Autor) %>% summarise(promedio=mean(Valoracion), n=n(), sd(Valoracion)) %>%
+  arrange(desc(n)) %>% filter(promedio >= 2) %>% filter(n > 3)
 
 
 #grafico para autores mas valorados 
@@ -556,24 +597,48 @@ ggplot(Autores_linio, aes(x=promedio, y=n))+ geom_point(size=4,color="orange", a
   ggtitle("Autores más valorados y con mayor cantidad de libros")+ theme_classic()
 
 
+#De la misma forma que en Bookdepository, es importante considerar tanto la valoracion 
+#de cada autor como la cantidad de libros evaluados. En este aspecto J.K. Rowling tiene 
+#una gran cantidad de libros sin embargo, tiene una puntuacion inferior a 2.5. Por otro 
+#lado, autores como James Dashne tienen menos libros (5) pero una valoracion mejor, 
+#superando los 3.5 puntos.
+
 ########## GRAFICO 4 ##########
 
+#Para este caso, se busca identificar las editoriales con mayor cantidad de publicaciones en 
+#esta plataforma. 
+
+#Editoriales con mayor cantidad de libros (para esto se cuentan los libros y luego se muestran
+#solo las 15 editoriales con mayor cantidad de publicaciones)
 editorial_linio <- linio%>%filter(Editorial!="is.na")%>%group_by(Editorial)%>%
   summarise(n=n())%>%arrange(desc(n))%>%filter(row_number()<=15)
 
-
+#grafico para editoriales con mayor cantidad de publicaciones
 ggplot(editorial_linio,aes(x=Editorial, y=n)) + 
   geom_bar(stat = "identity", width = 0.7, color="darkorange1", fill=rgb(1,0.6,0,0.6)) +
   coord_flip()+ theme_classic()+ ggtitle("Editoriales con más publicaciones")+ 
   ylab("Publicaciones")
 
 
+#Para el caso de linio, la editorial "Vicens Vives" es la que tiene una mayor cantidad de 
+#libros, contrastando con bookdepository que la mayor cantidad era de editoriales 
+#independientes. A esta editorial le sigue (aunque no de cerca) "Usborne" y "Penguin Random 
+#House".
+
+
+
+
+
 ##############################################################################################################
 #--------------------------------------- CREAR GRAFICOS COMBINADOS -------------------------------------------
+#se combinan ambas bases de datos
+libros <-  rbind(Info_bookdepository2, linio)
 
-libros <-  rbind(Info_bookdepository2, info_linio)
 
 ########## GRAFICO 1 ##########
+
+#grafico que muestra la ditribucion de los precios para bookdepository y linio
+
 #Precios para linio y bookde con outliers
 ggplot(libros, aes(x=Sitio_web, y=Precio))+ 
   geom_boxplot(fill="slateblue", alpha=0.2) +
@@ -584,15 +649,75 @@ ggplot(libros, aes(x=Sitio_web, y=Precio))+
 ggplot(libros, aes(x=Sitio_web, y=Precio))+ 
   geom_boxplot(fill="slateblue", alpha=0.2)+ 
   stat_summary(fun= mean, geom = "point", shape=20, size=4, color="red", fill="red")+
-  theme_classic() + scale_y_continuous(limits=c(5000, 60000)) + scale_fill_brewer(palette = "BuPu")
+  theme_classic() + scale_y_continuous(limits=c(5000, 60000)) + 
+  scale_fill_brewer(palette = "BuPu") + xlab("Página web")+ ylab("Precios")+
+  ggtitle("Distribución de precios por página")+ theme_classic()
 
-
+#En este grafico se puede observar que la distribucion de precios de linio es mayor que la de
+#bookdepository, sin embargo, sus medias son similares. Por otro lado, bookdepository tiene 
+#una gran cantidad de outliers  en comparacion a linio.
 
 
 ########## GRAFICO 2 ##########
 
+#instalar librerias
+install.packages("viridis")
+install.packages("hrbrthemes")
+
+#ejecutar librerias
+library(viridis)
+library(hrbrthemes)
+
+
+#Se ve la cantidad de libros para el formato tapa dura y tapa blanda (bookdepository tiene mas 
+#formatos pero estos son menores en comparacion a la cantidad que presenta el formato de tapa 
+#dura y blanda)
+
+libros_formato <- libros%>%filter((Formato=="Tapa Blanda" | Formato=="Tapa Dura"))%>%
+  group_by(Sitio_web, Formato)%>% summarise(cant_formato=n())
+
+#grafico
+ggplot(libros_formato, aes(fill=Sitio_web, y=cant_formato, x=Formato))+
+  geom_bar(position = "dodge", stat="identity")+
+  scale_fill_viridis(discrete=T, option = "E")+
+  ggtitle("Cantidad de libros por formato en cada página") + facet_wrap(~Sitio_web) +
+  theme_ipsum() + theme(legend.position = "none")+ xlab("Sitio web") + ylab("Cantidad de libros")
+
+
+#Es posible notar que ambas paginas tienen disponibles una gran cantidad de libros de tapa blanda,
+#que supera con creces a los de tapa dura. Ambas paginas tienen un comportamiento similar.
+
+
+######################## CARACTERISTICAS DE LOS LIBROS #####################
+
+#Autores
+select(linio, Autor) %>% filter(Autor != "is.na") %>% count(Autor) %>% arrange(desc(n)) %>% 
+  filter(row_number()<=5)
+
+select(Info_bookdepository2, Autor) %>% filter(Autor != "") %>% count(Autor) %>% 
+  arrange(desc(n)) %>% filter(row_number()<=5)
+
+#Precio
+summary(libros$Precio)
+
+#Cantidad de paginas
+summary(libros$Cant_pag)
+
+######################################################################################
+#---------------------------- DESCRIPCION DE LAS VARIABLES --------------------------#
+
+# -x: Numero de fila correspondiente a cada observacion
+# -Titulo: Nombre del libro
+# -Autor: Nombre de autor o autores de cada libro
+# -Precio: Precios de los libros sin descuentos
+# -Editorial: Nombre de la editorial de cada libro
+# -Valoracion:Valoracion (estrellas) de cada libro, escala de 1 a 5
+# -Cant_coment:Cantidad de comentarios que conforman la valoracion de un libro
+# -Cant_pag: Cantidad de paginas de cada libro
+# -Formato: Formato de cada libro (principalmente si es tapa dura o tapa blanca)
 
 
 
-########## GRAFICO 3 ##########
-########## GRAFICO 4 ##########
+
+
+
