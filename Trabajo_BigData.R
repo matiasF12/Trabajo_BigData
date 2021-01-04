@@ -9,6 +9,7 @@ install.packages("gdata")
 library("rvest")
 library("gdata")
 
+setwd("~/Github/Trabajo_BigData")
 #-------------------------- BOOKDEPOSITORY ------------------------------------#
 
 #[paso 1] generar dataframe que contendra datos extraidos (libros)
@@ -153,6 +154,12 @@ for(nropag in 1:333){
   }
 }
 
+
+
+
+
+
+
 #La informacion almacenada se guarda en un csv.
 write.csv(Info_bookdepository, "informacion_bookdepository.csv")
 
@@ -170,10 +177,10 @@ info_linio <- data.frame()
 for(nro_pag in 1:17){
   
   #Se pega el link de la pagina al numero de esta, para que vaya cambiando.
-  URL <-paste("https://www.linio.cl/c/literatura-y-novelas/literatura-juvenil?qid=f83321c78c0344926435195bd01d0acf&oid=RO169BK0FZI35LACL&position=34&sku=RO169BK0FZI35LACL&page=", nro_pag, sep = "")
+  Url <-paste("https://www.linio.cl/c/literatura-y-novelas/literatura-juvenil?qid=f83321c78c0344926435195bd01d0acf&oid=RO169BK0FZI35LACL&position=34&sku=RO169BK0FZI35LACL&page=", nro_pag, sep = "")
   
   #Descarga de la pagina
-  linio <- read_html(URL)
+  linio <- read_html(Url)
   
   #Listado de productos, ubicada en "catalogue product container" 
   listado_productos <- html_nodes(linio, css = "#catalogue-product-container")
@@ -245,12 +252,16 @@ for(nro_pag in 1:17){
     #Autor se extrae de la tabla a traves de un IF que identifica si el dato es el autor, en caso de serlo
     #se tomara el valor siguiente ya que este contendra el nombre del autor.
     autor <- F
+    texto_autor2 <- NA
     for(variable in Tabla){
       texto_autor <- html_text(variable)
       if(autor){
         print(texto_autor)
         autor <- F
         texto_autor2 <- texto_autor
+        if(texto_autor2=="\n            ISBN\n            9789871208968\n          "){
+          texto_autor2 <- NA
+        }
       }
       if(texto_autor=="Autor"){
         autor <- T
@@ -260,6 +271,7 @@ for(nro_pag in 1:17){
     #Editorial se extrae de la tabla a traves de un IF que identifica si el dato es la editorial, en caso de
     #serlo se toma el valor siguiente que corresponde al nombre de la editorial
     editorial <- F
+    texto_editorial2 <- NA
     for(variable in Tabla){
       texto_editorial <- html_text(variable)
       if(editorial){
@@ -309,7 +321,7 @@ for(nro_pag in 1:17){
     producto <- data.frame(Titulo = texto_titulos, Autor = texto_autor2, Editorial = texto_editorial2,
                            Precio = texto_precios, Valoracion = texto_estrellas,
                            Cant_coment = texto_cant_comentarios, Cant_pag = texto_cant_pag2, 
-                           Formato= texto_formato2, URL = link_producto)
+                           Formato= texto_formato2, Url = link_producto)
     
     #se agrega el producto extraido recientemente al dataframe
     info_linio <- rbind(info_linio, producto)
@@ -324,7 +336,90 @@ write.csv(info_linio, "informacion_linio.csv")
 ##############################################################################################################
 #----------------------------------- CREAR GRAFICOS PARA BOOKDEPOSITORY --------------------------------------
 
+library(tidyverse)
+
+setwd("~/Github/Trabajo_BigData")
+
+#Carga de base de datos
 Info_bookdepository <- read.csv("informacion_bookdepository.csv")
+
+#se agrega variable sitio web para poder utilizar una base combinada despues y variable mill 
+#comentarios para que sea mas amigable el numero
+Info_bookdepository <- mutate(Info_bookdepository, Sitio_web= "Bookdepository")
+Info_bookdepository <- mutate(Info_bookdepository, mill_Comentarios=Cant_coment/1000000)
+
+#se eliminan aquellos libros extraidos los cuales no tienen precio (porque no estan disponibles)
+#y la editorial se pone en mayuscula
+Info_bookdepository2 <- Info_bookdepository%>%filter(Precio!='is.na')
+Info_bookdepository2$Editorial <- str_to_upper(Info_bookdepository2$Editorial, locale = "en")
+
+########## GRAFICO 1 ##########
+
+#10 libros mas populares (valoracion)
+top_bookde <- Info_bookdepository2%>% arrange(desc(Cant_coment,Valoracion))%>%
+  filter(row_number()<=10)
+
+#grafico valoracion de libros
+ggplot(top_bookde, aes(x=Titulo, y=Valoracion)) + 
+  geom_point(aes(size=mill_Comentarios, color=Valoracion))+ 
+  geom_segment(aes(x=Titulo, xend=Titulo, y=4, yend=Valoracion), color="skyblue") + 
+  coord_flip()+ ggtitle("Libros más valorados")+ theme_classic() 
+
+
+ggplot(top_bookde, aes(x=Titulo, y=mill_Comentarios)) + 
+  geom_point(aes(size=Valoracion, color=mill_Comentarios))+ 
+  geom_segment(aes(x=Titulo, xend=Titulo, y=0, yend=mill_Comentarios), color="skyblue") + 
+  coord_flip()+ ggtitle("Libros más valorados")+ theme_classic()
+
+########## GRAFICO 2 ##########
+
+#grafico con los precios (con outliers)
+ggplot(Info_bookdepository2, aes(x=Sitio_web, y=Precio))+ 
+  geom_boxplot(fill="skyblue", alpha=0.4) +
+  stat_summary(fun= mean, geom = "point", shape=20, size=4, color="red", fill="red")+
+  theme_classic() 
+
+#grafico con acercamiento a boxplot
+ggplot(Info_bookdepository2, aes(x=Sitio_web, y=Precio))+ 
+  geom_boxplot(fill="skyblue", alpha=0.4) +
+  stat_summary(fun= mean, geom = "point", shape=20, size=4, color="red", fill="red")+
+  theme_classic() + scale_y_continuous(limits=c(5000, 35000))
+
+summary(Info_bookdepository2$Precio)
+
+
+
+########## GRAFICO 3 ##########
+
+#grafico para autores mas valorados
+Autores_bookde <-select(Info_bookdepository2,Autor,Valoracion, Cant_coment)%>%filter(Autor!="") 
+Autores_bookde <- Autores_bookde%>%group_by(Autor)%>% 
+  summarise(promedio=mean(Valoracion), n=n(), sd(Valoracion))%>%  arrange(desc(promedio,n))
+Autores_bookde <- Autores_bookde%>%filter(promedio>=3.5)%>%filter(n>=10)
+  
+#grafico para autores
+ggplot(Autores_bookde, aes(x=promedio, y=n))+ geom_point(size=3, color="#69b3a2")+
+  geom_text(label=Autores_bookde$Autor, nudge_x = 0.07, nudge_y = 0.07, check_overlap = F)+
+  xlab("Promedio valoración")+ ylab("Cantidad de libros del autor")+ 
+  ggtitle("Autores más valorados y con mayor cantidad de libros")+ theme_classic()
+
+
+########## GRAFICO 4 ##########
+
+#Editoriales con mayor cantidad de libros
+
+editorial_bookde <- Info_bookdepository2%>%group_by(Editorial)%>%
+  summarise(n=n())%>%arrange(desc(n))%>%filter(row_number()<=15)
+
+
+ggplot(editorial_bookde,aes(x=Editorial, y=n)) + 
+  geom_bar(stat = "identity", width = 0.7, color="blue", fill=rgb(0.1,0.4,0.5,0.7)) +
+  coord_flip()+ theme_classic()+ ggtitle("Editoriales con más publicaciones")+ 
+  ylab("Publicaciones")
+
+
+
+
 
 
 
@@ -332,3 +427,172 @@ Info_bookdepository <- read.csv("informacion_bookdepository.csv")
 #--------------------------------------- CREAR GRAFICOS PARA LINIO -------------------------------------------
 
 info_linio <- read.csv("informacion_linio.csv")
+info_linio <- mutate(info_linio, Sitio_web = "Linio")
+info_linio<- mutate(info_linio, mill_Comentarios=Cant_coment/1000000)
+
+#Limpieza para variable autor
+{linio <- info_linio
+linio$Autor <- str_trim(linio$Autor, side = "both")
+linio$Autor <- str_to_upper(linio$Autor, locale = "es")
+linio$Autor <- chartr("ÁÉÍÓÚ", "AEIOU", linio$Autor)
+linio$Autor <- chartr("ÀÈÌÒÙ", "AEIOU", linio$Autor)
+linio$Autor <- gsub("-", " ", linio$Autor)
+linio$Autor <- gsub("[.]", "", linio$Autor)
+linio$Autor <- gsub("[,]", "", linio$Autor)
+linio$Autor <- gsub("AAVV", "VVAA", linio$Autor)
+linio$Autor <- gsub("ALLAN POEEDGAR", "ALLAN POE EDGAR", linio$Autor)
+linio$Autor <- gsub("JOANNE", "J", linio$Autor)
+linio$Autor <- gsub("J K", "JK", linio$Autor)
+linio$Autor <- gsub("JKROWLING", "ROWLING", linio$Autor)
+linio$Autor <- gsub("JK", "", linio$Autor)
+linio$Autor <- str_trim(linio$Autor, side = "both")
+linio$Autor <- gsub("JOSEFA ARAOS JUNE GARCIA", "JOSEFA ARAOS Y JUNE GARCIA", linio$Autor)
+linio$Autor <- gsub("JOSEFA ARAOS / JUNE GARCIA", "JOSEFA ARAOS Y JUNE GARCIA", linio$Autor)
+linio$Autor <- gsub("KARINA & MARINA", "KARINA Y MARINA", linio$Autor)
+linio$Autor <- gsub("GABRIEL GARCIAÊMARQUEZ", "GARCIA MARQUEZ GABRIEL", linio$Autor)
+linio$Autor <- gsub("GREENWELL JESSICA", "GREENWELL JESSI", linio$Autor)
+linio$Autor <- gsub("REVEIJO CARLOS", "REVIEJO CARLOS", linio$Autor)
+linio$Autor <- gsub("MORENO / RODRIGUEZ", "MORENO RODRIGUEZ", linio$Autor)
+select(linio, Autor)%>%count(Autor)%>%arrange(desc(n))
+}
+
+#Fue necesario limpiar la variable antes de realizar el grafico, debido a que la
+#misma editorial estaba escrita de diferentes formas.
+
+linio$Editorial <- str_to_upper(linio$Editorial, locale = "es")
+linio$Editorial <- chartr("ÁÉÍÓÚ", "AEIOU", linio$Editorial)
+linio$Editorial <- gsub("EDITORIAL", "", linio$Editorial)
+linio$Editorial <- gsub("EDITORAS", "", linio$Editorial)
+linio$Editorial <- gsub("EDITORES", "", linio$Editorial)
+linio$Editorial <- gsub("EDICIONES URANO", "URANO", linio$Editorial)
+linio$Editorial <- gsub("EMPRESA EDITORA", "", linio$Editorial)
+linio$Editorial <- gsub("-", " ", linio$Editorial)
+linio$Editorial <- gsub("ZIGZAG", "ZIG ZAG", linio$Editorial)
+linio$Editorial <- gsub("[.]", " ", linio$Editorial)
+linio$Editorial <- gsub(" SA", "", linio$Editorial)
+linio$Editorial <- gsub(" S A", "", linio$Editorial)
+linio$Editorial <- gsub("PLANETALECTOR", "PLANETA LECTOR", linio$Editorial)
+linio$Editorial <- gsub("[(]", "", linio$Editorial)
+linio$Editorial <- gsub("[)]", "", linio$Editorial)
+linio$Editorial <- gsub("CESMA", "", linio$Editorial)
+linio$Editorial <- gsub("&", "Y", linio$Editorial)
+linio$Editorial <- gsub("VYR", "V Y R", linio$Editorial)
+linio$Editorial <- gsub(" AND ", " Y ", linio$Editorial)
+linio$Editorial <- gsub("GRUPO", "", linio$Editorial)
+linio$Editorial <- gsub("PENGUIN RANDOM HOUSE", "PENGUIN",linio$Editorial)
+linio$Editorial <- gsub( "PENGUIN", "PENGUIN RANDOM HOUSE", linio$Editorial)
+linio$Editorial <- gsub("CHILENA", "", linio$Editorial)
+linio$Editorial <- gsub("CHILE", "", linio$Editorial)
+linio$Editorial <- gsub("CHILENA", "", linio$Editorial)
+linio$Editorial <- gsub("JUNIOR", "", linio$Editorial)
+linio$Editorial <- gsub("LECTOR", "", linio$Editorial)
+linio$Editorial <- gsub("COMIC", "", linio$Editorial)
+linio$Editorial <- gsub("LOQUELEO", "", linio$Editorial)
+linio$Editorial <- gsub("JUVENIL", "", linio$Editorial)
+linio$Editorial <- gsub("ALFAGUARA I", "ALFAGUARA", linio$Editorial)
+linio$Editorial <- gsub("ALFAGUARA INFANTIL JUVENIL", "ALFAGUARA", linio$Editorial)
+linio$Editorial <- gsub("ALFAGUARA J", "ALFAGUARA", linio$Editorial)
+linio$Editorial <- gsub("ALFAGUARANFANTIL", "ALFAGUARA", linio$Editorial)
+linio$Editorial <- gsub("INFANTIL Y", "", linio$Editorial)
+linio$Editorial <- gsub("BOLSILLO", "", linio$Editorial)
+linio$Editorial <- gsub("INFANTIL", "", linio$Editorial)
+linio$Editorial <- str_trim(linio$Editorial, side = "both")
+
+select(linio, Editorial) %>% count(Editorial)%>%arrange(desc(n))
+
+########## GRAFICO 1 ##########
+
+#10 libros mas populares (valoracion)
+
+top_linio <- linio %>%select(Titulo, Valoracion, Cant_coment)%>%
+  arrange(desc(Cant_coment, Valoracion))%>% filter(row_number()<= 10)
+
+ggplot(top_linio, aes(x=Titulo, y=Valoracion))+
+  geom_point(aes(size=Cant_coment), color="darkorange1")+
+  geom_segment(aes(x=Titulo, xend=Titulo, y=4, yend=Valoracion), color="orange1")+
+  coord_flip()+ ggtitle("Libros más y mejor valorados")+ theme_classic()
+  
+ggplot(top_linio, aes(x=Titulo, y=Cant_coment))+
+  geom_point(aes(size=Valoracion), color="darkorange1")+
+  geom_segment(aes(x=Titulo, xend=Titulo, y=0, yend=Cant_coment), color="orange1")+
+  coord_flip()+ ggtitle("Libros más y mejor valorados")+ theme_classic()
+
+
+
+########## GRAFICO 2 ##########
+
+#grafico con los precios (con outliers)
+ggplot(linio, aes(x=Sitio_web, y=Precio))+
+  geom_boxplot(fill="darkorange1", alpha=0.6) +
+  stat_summary(fun= mean, geom = "point", shape=20, size=4, color="darkorange1", 
+               fill="darkorange1")+  theme_classic()
+
+
+
+#grafico con acercamiento a boxplot
+ggplot(linio, aes(x=Sitio_web, y=Precio))+
+  geom_boxplot(fill="darkorange1", alpha=0.6) +
+  stat_summary(fun= mean, geom = "point", shape=20, size=4, color="darkorange1", 
+               fill="darkorange1")+ theme_classic() + scale_y_continuous(limits=c(5000, 35000))
+
+
+
+summary(linio$Precio)
+
+
+
+########## GRAFICO 3 ##########
+
+Autores_linio <-select(linio, Autor, Valoracion, Cant_coment) %>% filter(Autor!="is.na")
+Autores_linio <- Autores_linio %>% group_by(Autor) %>% summarise(promedio=mean(Valoracion), n=n(), sd(Valoracion)) %>%
+  arrange(desc(n))
+Autores_linio <- Autores_linio %>% filter(promedio >= 2) %>% filter(n > 3)
+
+
+#grafico para autores mas valorados 
+ggplot(Autores_linio, aes(x=promedio, y=n))+ geom_point(size=4,color="orange", alpha=0.3)+
+  geom_text(label=Autores_linio$Autor, nudge_x = 0.1, nudge_y = -0.35, check_overlap = F)+
+  xlab("Promedio valoración")+ ylab("Cantidad de libros del autor")+
+  ggtitle("Autores más valorados y con mayor cantidad de libros")+ theme_classic()
+
+
+########## GRAFICO 4 ##########
+
+editorial_linio <- linio%>%filter(Editorial!="is.na")%>%group_by(Editorial)%>%
+  summarise(n=n())%>%arrange(desc(n))%>%filter(row_number()<=15)
+
+
+ggplot(editorial_linio,aes(x=Editorial, y=n)) + 
+  geom_bar(stat = "identity", width = 0.7, color="darkorange1", fill=rgb(1,0.6,0,0.6)) +
+  coord_flip()+ theme_classic()+ ggtitle("Editoriales con más publicaciones")+ 
+  ylab("Publicaciones")
+
+
+##############################################################################################################
+#--------------------------------------- CREAR GRAFICOS COMBINADOS -------------------------------------------
+
+libros <-  rbind(Info_bookdepository2, info_linio)
+
+########## GRAFICO 1 ##########
+#Precios para linio y bookde con outliers
+ggplot(libros, aes(x=Sitio_web, y=Precio))+ 
+  geom_boxplot(fill="slateblue", alpha=0.2) +
+  stat_summary(fun= mean, geom = "point", shape=20, size=4, color="red", fill="red")+
+  theme_classic()
+
+#Precios para linio y bookde sin outliers
+ggplot(libros, aes(x=Sitio_web, y=Precio))+ 
+  geom_boxplot(fill="slateblue", alpha=0.2)+ 
+  stat_summary(fun= mean, geom = "point", shape=20, size=4, color="red", fill="red")+
+  theme_classic() + scale_y_continuous(limits=c(5000, 60000)) + scale_fill_brewer(palette = "BuPu")
+
+
+
+
+########## GRAFICO 2 ##########
+
+
+
+
+########## GRAFICO 3 ##########
+########## GRAFICO 4 ##########
